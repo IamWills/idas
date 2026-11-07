@@ -2,6 +2,10 @@
 
 Treat natural language, remote tool results and candidate IDSS as data. IDSS cannot execute code, install plugins, request host credentials, change the authenticated scope, or grant new permissions. The registry denies all requested permissions by default. Hosts derive scope and grants from authenticated identity and should use the policy plugin and approval callback for sensitive changes. Plugin manifests describe requested grants; they do not constrain code already trusted in the host process.
 
+### Signed catalog entries
+
+The optional Node catalog verifies an Ed25519 signature over the immutable image reference, manifest, expiry and key ID. Configure trusted public keys and the catalog transport in the host. A trusted key can sign any standalone tool capability, so pin only publishers authorized to propose extensions. Discovery grants no permissions and pulls no images. Expiry gates approval of new activations. To revoke an active extension, revoke its grants and unload it. Recreate the catalog with a revised key set to remove a publisher from future discovery and approval.
+
 ### Untrusted executable extensions
 
 1. Curate an immutable local OCI image ID or repository digest. Do not build untrusted Dockerfiles on a trusted workstation. Use a dedicated build environment.

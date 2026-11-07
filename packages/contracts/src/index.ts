@@ -77,6 +77,20 @@ export const pluginManifest = obj({
   provides: z.array(obj({ id: identifier, version: short })).min(1).max(100),
 });
 export type PluginManifest = z.infer<typeof pluginManifest>;
+export const sandboxImage = z.string().regex(/^(?:[a-z0-9][a-z0-9./:_-]{0,240}@)?sha256:[a-f0-9]{64}$/);
+export const sandboxDescriptor = obj({
+  format: z.literal('idas.sandbox.v1'),
+  keyId: identifier,
+  expiresAt: z.number().int().positive(),
+  image: sandboxImage,
+  manifest: pluginManifest,
+});
+export const signedSandboxDescriptor = obj({
+  descriptor: sandboxDescriptor,
+  signature: z.string().regex(/^[A-Za-z0-9_-]{86}$/),
+});
+export type SandboxDescriptor = z.infer<typeof sandboxDescriptor>;
+export type SignedSandboxDescriptor = z.infer<typeof signedSandboxDescriptor>;
 export interface Invocation {
   readonly signal: AbortSignal;
   /** Stable for retries of an event; external systems should deduplicate on this key. */

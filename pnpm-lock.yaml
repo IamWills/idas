@@ -69,6 +69,9 @@ importers:
       '@intent-driven/contracts':
         specifier: workspace:^
         version: link:../contracts
+      semver:
+        specifier: ^7.7.2
+        version: 7.8.6
 
   packages/protocols:
     dependencies:

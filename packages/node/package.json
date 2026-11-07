@@ -18,6 +18,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@intent-driven/contracts": "workspace:^"
+    "@intent-driven/contracts": "workspace:^",
+    "semver": "^7.7.2"
   }
 }
