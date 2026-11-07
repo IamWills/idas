@@ -1,0 +1,34 @@
+name: Publish npm packages
+on:
+  push:
+    tags: ['npm-v*']
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: npm install --global npm@^11.5.1
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            for (const name of ["contracts","core","standard","node","react","protocols"]) {
+              const pkg = JSON.parse(fs.readFileSync("packages/" + name + "/package.json"));
+              if (process.env.GITHUB_REF_NAME !== "npm-v" + pkg.version) throw Error("Tag does not match package version");
+            }
+          '
+          bash scripts/pack.sh "$RUNNER_TEMP/idas-packages"
+          for name in contracts core standard node react protocols; do
+            npm publish "$RUNNER_TEMP"/idas-packages/intent-driven-"$name"-*.tgz --access public --provenance
+          done

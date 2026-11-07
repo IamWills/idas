@@ -1,0 +1,23 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "packages/contracts"
+    },
+    {
+      "path": "packages/core"
+    },
+    {
+      "path": "packages/standard"
+    },
+    {
+      "path": "packages/node"
+    },
+    {
+      "path": "packages/react"
+    },
+    {
+      "path": "packages/protocols"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@intent-driven/contracts",
+  "version": "0.1.0",
+  "description": "IDAS contracts",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "zod": "^4.1.0"
+  }
+}

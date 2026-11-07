@@ -1,0 +1,24 @@
+{
+  "name": "@intent-driven/core",
+  "version": "0.1.0",
+  "description": "IDAS core",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@intent-driven/contracts": "workspace:^",
+    "semver": "^7.7.2"
+  }
+}

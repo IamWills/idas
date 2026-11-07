@@ -1,0 +1,449 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "intent": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "constraints": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "context": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "scope": {
+          "type": "string",
+          "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+        }
+      },
+      "required": [
+        "goal",
+        "constraints",
+        "context",
+        "scope"
+      ],
+      "additionalProperties": false
+    },
+    "ui": {
+      "type": "object",
+      "properties": {
+        "layout": {
+          "type": "string",
+          "enum": [
+            "stack",
+            "grid"
+          ]
+        },
+        "columns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
+        "collapseBelow": {
+          "type": "integer",
+          "minimum": 320,
+          "maximum": 1600
+        },
+        "theme": {
+          "type": "string",
+          "enum": [
+            "light",
+            "dark",
+            "system"
+          ]
+        },
+        "views": {
+          "minItems": 1,
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "components": {
+                "maxItems": 100,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "text",
+                        "button",
+                        "input",
+                        "value"
+                      ]
+                    },
+                    "label": {
+                      "type": "string",
+                      "maxLength": 1000
+                    },
+                    "event": {
+                      "type": "string",
+                      "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                    },
+                    "state": {
+                      "type": "string",
+                      "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "label"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "components"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "layout",
+        "columns",
+        "collapseBelow",
+        "theme",
+        "views"
+      ],
+      "additionalProperties": false
+    },
+    "interaction": {
+      "type": "object",
+      "properties": {
+        "initial": {
+          "type": "string",
+          "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+        },
+        "states": {
+          "minItems": 1,
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+          }
+        },
+        "rules": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "event": {
+                "type": "string",
+                "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+              },
+              "from": {
+                "type": "string",
+                "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+              },
+              "to": {
+                "type": "string",
+                "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+              },
+              "set": {
+                "maxItems": 100,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                    },
+                    "value": {
+                      "$ref": "#/$defs/__schema0"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "value"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "capture": {
+                "type": "string",
+                "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+              },
+              "workflow": {
+                "type": "string",
+                "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+              }
+            },
+            "required": [
+              "event",
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "initial",
+        "states",
+        "rules"
+      ],
+      "additionalProperties": false
+    },
+    "workflows": {
+      "maxItems": 30,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+          },
+          "tasks": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                },
+                "capability": {
+                  "type": "string",
+                  "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                },
+                "input": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "after": {
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                  }
+                },
+                "when": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                    },
+                    "equals": {
+                      "$ref": "#/$defs/__schema0"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "equals"
+                  ],
+                  "additionalProperties": false
+                },
+                "saveAs": {
+                  "type": "string",
+                  "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                }
+              },
+              "required": [
+                "id",
+                "capability",
+                "input"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "tasks"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "capabilities": {
+      "maxItems": 100,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+          },
+          "range": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "id",
+          "range"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "policy": {
+      "type": "object",
+      "properties": {
+        "approval": {
+          "type": "boolean"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 120000
+        }
+      },
+      "required": [
+        "approval",
+        "timeoutMs"
+      ],
+      "additionalProperties": false
+    },
+    "state": {
+      "type": "object",
+      "properties": {
+        "initial": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        "persistent": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "rename": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+          }
+        }
+      },
+      "required": [
+        "initial",
+        "persistent",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "source": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "changes": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "compatibleWith": {
+          "type": "string",
+          "const": "IDSS/1"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "source",
+        "changes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "intent",
+    "ui",
+    "interaction",
+    "workflows",
+    "capabilities",
+    "policy",
+    "state",
+    "metadata"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          }
+        }
+      ]
+    }
+  }
+}
