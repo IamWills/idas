@@ -1,1 +1,26 @@
-{"name":"idas-workspace","private":true,"type":"module","packageManager":"pnpm@10.4.1","engines":{"node":">=22"},"scripts":{"build":"tsc -b","test":"pnpm build && node --test tests/*.test.mjs","test:bun":"bun test tests/*.test.mjs","schema":"node scripts/schema.mjs","demo":"node examples/node-agent/demo.mjs","web":"pnpm --filter idas-web dev"},"devDependencies":{"typescript":"^5.9.3","@types/node":"^22.0.0","@types/semver":"^7.7.1","@types/react":"^19.0.0"}}
+{
+  "name": "idas-workspace",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.4.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "test": "pnpm build && node --test tests/*.test.mjs",
+    "test:bun": "bun test tests/*.test.mjs",
+    "schema": "node scripts/schema.mjs",
+    "demo": "node examples/node-agent/demo.mjs",
+    "web": "pnpm --filter idas-web dev",
+    "mcp:stdio": "node examples/node-agent/mcp.mjs",
+    "shared:serve": "node examples/node-agent/shared.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "@types/node": "^22.0.0",
+    "@types/semver": "^7.7.1",
+    "@types/react": "^19.0.0",
+    "@modelcontextprotocol/client": "^2.4.0"
+  }
+}

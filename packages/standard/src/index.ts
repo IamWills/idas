@@ -1,4 +1,4 @@
-import { canonical, clone, IdasError, services } from '@intent-driven/contracts';
+import { canonical, clone, IdasError, jsonSchema, modelRequest, services } from '@intent-driven/contracts';
 import type { Json, Plugin, Snapshot, Store, Specification, Requirement, Invocation } from '@intent-driven/contracts';
 import { orderedTasks, validate } from './spec.js';
 export { migrate, validate } from './spec.js';
@@ -67,6 +67,9 @@ export function standard(options: StandardOptions): Plugin {
         const { current, event, input: payload } = input as unknown as { current: Snapshot; event: string; input: Json };
         const rule = current.spec.interaction.rules.find(r => r.from === current.mode && r.event === event);
         if (!rule) throw new IdasError('INVALID', 'Event ' + event + ' is not available in ' + current.mode);
+        if (rule.input && (typeof payload !== 'string' || payload.length < rule.input.minLength || payload.length > rule.input.maxLength)) {
+          throw new IdasError('INVALID', 'Event ' + event + ' requires text of length ' + rule.input.minLength + '–' + rule.input.maxLength);
+        }
         const data = { ...current.data };
         for (const write of rule.set ?? []) data[write.key] = write.value;
         if (rule.capture) data[rule.capture] = payload;
@@ -85,7 +88,12 @@ export function standard(options: StandardOptions): Plugin {
           if (task.after?.some(d => skipped.has(d)) ||
             (task.when && canonical(next[task.when.key]) !== canonical(task.when.equals))) { skipped.add(task.id); continue; }
           const requirement = spec.capabilities.find(c => c.id === task.capability)!;
-          const output = await options.tool(requirement, task.input, scope, ctx.signal, canonical([ctx.operation, workflow, task.id]));
+          let taskInput = task.input;
+          if (task.inputFrom) taskInput = next[task.inputFrom]!;
+          if (task.inputBindings) {
+            taskInput = Object.fromEntries(Object.entries(task.inputBindings).map(([key, state]) => [key, next[state]!]));
+          }
+          const output = await options.tool(requirement, taskInput, scope, ctx.signal, canonical([ctx.operation, workflow, task.id]));
           if (task.saveAs) next[task.saveAs] = output;
         }
         return next;
@@ -149,13 +157,35 @@ export function echoPlugin(): Plugin {
 }
 
 /** Model providers implement the declared JSON-in/JSON-out capability. No SDK or credentials enter Core. */
-export function modelCompiler(model: Requirement = { id: services.model, range: '^1.0.0' }): Plugin {
+export function modelCompiler(model: Requirement = { id: services.model, range: '^1.0.0' }, options: {
+  repair?: boolean;
+  available?: (scope: string) => { id: string; version: string }[];
+} = {}): Plugin {
+  const repair = options.repair === true;
+  const available = options.available;
+  const schema = available ? jsonSchema() : null;
   return {
     manifest: { id: 'idas.compiler.model', version: '1.0.0', environments: ['any'], requires: [model], permissions: [],
       provides: [{ id: services.compiler, version: '1.1.0' }] },
     async invoke(_id, input, ctx) {
-      const candidate = await ctx.call(model, input);
-      return clone(validate(candidate));
+      let request = input;
+      if (available) {
+        const { scope } = input as unknown as CompileInput;
+        const parsed = modelRequest.safeParse({ ...(input as object), schema, available: available(scope) });
+        if (!parsed.success) throw new IdasError('INVALID', 'Invalid structured model request');
+        request = clone(parsed.data);
+      }
+      const candidate = await ctx.call(model, request);
+      try {
+        return clone(validate(candidate));
+      } catch (error) {
+        if (!repair || !(error instanceof IdasError) || error.code !== 'INVALID') throw error;
+        if (request === null || typeof request !== 'object' || Array.isArray(request)) throw error;
+        const corrected = await ctx.call(model, { ...request, repair: { message: error.message.slice(0, 4000) } });
+        return clone(validate(corrected));
+      }
     },
   };
 }
+
+export { diffSpecification } from './diff.js';

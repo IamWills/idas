@@ -10,16 +10,27 @@ export const capability = obj({ id: identifier, range: z.string().min(1).max(128
 const component = obj({
   id: identifier, kind: z.enum(['text', 'button', 'input', 'value']), label: short,
   event: identifier.optional(), state: identifier.optional(),
+  modes: z.array(identifier).min(1).max(100).optional(),
+  multiline: z.boolean().optional(),
 });
 const rule = obj({ event: identifier, from: identifier, to: identifier,
   set: z.array(obj({ key: identifier, value: json })).max(100).optional(),
-  capture: identifier.optional(), workflow: identifier.optional() });
+  capture: identifier.optional(), workflow: identifier.optional(),
+  input: obj({ kind: z.literal('text'), minLength: z.number().int().min(0).max(1000),
+    maxLength: z.number().int().min(1).max(1000) }).optional() });
 const task = obj({ id: identifier, capability: identifier, input: json, after: z.array(identifier).max(100).optional(),
-  when: obj({ key: identifier, equals: json }).optional(), saveAs: identifier.optional() });
+  when: obj({ key: identifier, equals: json }).optional(), saveAs: identifier.optional(),
+  inputFrom: identifier.optional(), inputBindings: z.record(identifier, identifier).optional() });
 export const specification = obj({
   intent: obj({ goal: z.string().min(1).max(4000), constraints: z.array(short).max(100), context: json, scope: identifier }),
   ui: obj({ layout: z.enum(['stack', 'grid']), columns: z.number().int().min(1).max(4), collapseBelow: z.number().int().min(320).max(1600),
-    theme: z.enum(['light', 'dark', 'system']), views: z.array(obj({ id: identifier, title: short, components: z.array(component).max(100) })).min(1).max(20) }),
+    theme: z.enum(['light', 'dark', 'system']), views: z.array(obj({ id: identifier, title: short, components: z.array(component).max(100) })).min(1).max(20),
+    presentation: obj({
+      wide: z.array(z.array(identifier).min(1).max(4)).min(1).max(20),
+      compact: z.array(identifier).min(1).max(20),
+      compactMode: z.enum(['stack', 'pages']).optional(),
+    }).optional(),
+  }),
   interaction: obj({ initial: identifier, states: z.array(identifier).min(1).max(100), rules: z.array(rule).max(200) }),
   workflows: z.array(obj({ id: identifier, tasks: z.array(task).max(100) })).max(30),
   capabilities: z.array(capability).max(100),
@@ -32,9 +43,34 @@ export type Specification = z.infer<typeof specification>;
 export type Requirement = z.infer<typeof capability>;
 export const jsonSchema = () => z.toJSONSchema(specification, { target: 'draft-2020-12' });
 
+export const adaptationContext = obj({
+  device: z.enum(['desktop', 'phone', 'tablet']),
+  task: identifier,
+});
+export type AdaptationContext = z.infer<typeof adaptationContext>;
+export const adaptationProposal = obj({
+  intent: z.string().trim().min(1).max(4000),
+  reason: z.string().trim().min(1).max(1000),
+});
+export const modelRequest = obj({
+  text: z.string().min(1).max(4000), context: json, scope: identifier,
+  previous: specification.nullable(),
+  schema: json,
+  available: z.array(obj({ id: identifier, version: short })).max(100),
+  repair: obj({ message: z.string().max(4000) }).optional(),
+});
+export type ModelRequest = z.infer<typeof modelRequest>;
+
 export class IdasError extends Error {
   constructor(readonly code: 'INVALID' | 'MISSING' | 'DENIED' | 'CONFLICT' | 'TIMEOUT' | 'CANCELLED' | 'PLUGIN', message: string, options?: ErrorOptions) {
     super(message, options); this.name = 'IdasError';
+  }
+}
+export class MissingCapabilityError extends IdasError {
+  readonly requirement: Requirement;
+  constructor(requirement: Requirement) {
+    super('MISSING', 'No compatible provider for ' + requirement.id + '@' + requirement.range);
+    this.requirement = { ...requirement };
   }
 }
 export function assertJson(value: unknown): asserts value is Json {
@@ -77,6 +113,20 @@ export const pluginManifest = obj({
   provides: z.array(obj({ id: identifier, version: short })).min(1).max(100),
 });
 export type PluginManifest = z.infer<typeof pluginManifest>;
+export const sandboxImage = z.string().regex(/^(?:[a-z0-9][a-z0-9./:_-]{0,240}@)?sha256:[a-f0-9]{64}$/);
+export const sandboxDescriptor = obj({
+  format: z.literal('idas.sandbox.v1'),
+  keyId: identifier,
+  expiresAt: z.number().int().positive(),
+  image: sandboxImage,
+  manifest: pluginManifest,
+});
+export const signedSandboxDescriptor = obj({
+  descriptor: sandboxDescriptor,
+  signature: z.string().regex(/^[A-Za-z0-9_-]{86}$/),
+});
+export type SandboxDescriptor = z.infer<typeof sandboxDescriptor>;
+export type SignedSandboxDescriptor = z.infer<typeof signedSandboxDescriptor>;
 export interface Invocation {
   readonly signal: AbortSignal;
   /** Stable for retries of an event; external systems should deduplicate on this key. */
@@ -106,4 +156,5 @@ export const services = {
   compiler: 'idas.compiler', specification: 'idas.specification', resolver: 'idas.resolver', composer: 'idas.composer',
   renderer: 'idas.renderer', interaction: 'idas.interaction', workflow: 'idas.workflow', policy: 'idas.policy',
   state: 'idas.state', model: 'idas.model', protocol: 'idas.protocol', evolution: 'idas.evolution',
+  adaptation: 'idas.adaptation', workspaceClaim: 'idas.workspace-claim',
 } as const;

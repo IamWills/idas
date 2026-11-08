@@ -1,4 +1,4 @@
-import { clone, IdasError, pluginManifest } from '@intent-driven/contracts';
+import { clone, IdasError, MissingCapabilityError, pluginManifest } from '@intent-driven/contracts';
 import type { Json, Plugin, PluginManifest, Requirement, Trace } from '@intent-driven/contracts';
 import semver from 'semver';
 
@@ -66,11 +66,28 @@ export class Registry {
       try { for (const d of m.requires) this.#resolve(d, scope, [...path, m.id], budget); return candidate; }
       catch (e) { if (!(e instanceof IdasError)) throw e; failure ??= e; }
     }
-    throw failure ?? new IdasError('MISSING', 'No compatible provider for ' + requirement.id + '@' + requirement.range);
+    throw failure ?? new MissingCapabilityError(requirement);
   }
   inspect(requirement: Requirement, scope: string): { plugin: string; version: string } {
     const b = this.#resolve(requirement, scope);
     return { plugin: b.entry.manifest.id, version: b.version };
+  }
+  available(scope: string): { id: string; version: string }[] {
+    const choices = new Map<string, { id: string; version: string }>();
+    for (const { manifest } of this.#entries.values()) {
+      for (const candidate of manifest.provides) {
+        if (candidate.id.startsWith('idas.')) continue;
+        const key = candidate.id + '@' + candidate.version;
+        if (choices.has(key)) continue;
+        try {
+          this.inspect({ id: candidate.id, range: '=' + candidate.version }, scope);
+          choices.set(key, { ...candidate });
+        } catch (error) {
+          if (!(error instanceof IdasError)) throw error;
+        }
+      }
+    }
+    return [...choices.values()].sort((a, b) => order(a.id, b.id) || semver.rcompare(a.version, b.version)).slice(0, 100);
   }
   async withLease<T>(run: () => Promise<T>): Promise<T> {
     if (this.#mutating) throw new IdasError('CONFLICT', 'Registry is changing');

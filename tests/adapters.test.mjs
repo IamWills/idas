@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { generateKeyPairSync, sign } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { canonical } from '../packages/contracts/dist/index.js';
 import { Engine, Registry } from '../packages/core/dist/index.js';
-import { approveSandbox, fileStore } from '../packages/node/dist/index.js';
+import { approveSandbox, fileStore, sandboxCatalog } from '../packages/node/dist/index.js';
 import { compileOffline, standard } from '../packages/standard/dist/index.js';
 import { a2uiSurface, aguiSnapshot, discoverMcp, mcpResources, mcpTools, readAguiEvent } from '../packages/protocols/dist/index.js';
 
@@ -79,14 +81,33 @@ dockerTest('real sandbox uses a read-only root, no network and no host secret, a
     const expected = { readOnly: true, noNetwork: true, noSecret: true };
     const probes = [{ capability: 'test.sandbox.echo', input: null, expected }];
     await assert.rejects(approveSandbox(candidate, { probes, approve: () => false }), { code: 'DENIED' });
-    const plugin = await approveSandbox(candidate, { probes, approve: () => true });
+    const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+    const descriptor = { ...candidate, format: 'idas.sandbox.v1', keyId: 'test', expiresAt: Date.now() + 60_000 };
+    const signed = { descriptor, signature: sign(null, Buffer.from(canonical(descriptor)), privateKey).toString('base64url') };
+    const catalog = sandboxCatalog({
+      environment: 'node',
+      trustedKeys: { test: publicKey.export({ type: 'spki', format: 'pem' }) },
+      load: async () => [signed],
+    });
+    const requirement = { id: 'test.sandbox.echo', range: '^1' };
     let allowed = false;
     const registry = new Registry('node', permission => allowed && permission === 'sandbox.use');
+    await registry.load(catalog.evolutionPlugin);
+    await registry.load(() => standard({ resolve: registry.inspect.bind(registry), tool: registry.invoke.bind(registry) }));
+    const engine = new Engine(registry);
+    const spec = compileOffline({ text: 'stack', scope: 'test', context: null, previous: null });
+    spec.capabilities.push(requirement);
+    spec.workflows.push({ id: 'sandbox', tasks: [{ id: 'run-sandbox', capability: requirement.id, input: null, saveAs: 'result' }] });
+    spec.interaction.rules.find(rule => rule.event === 'run').workflow = 'sandbox';
+    await assert.rejects(engine.previewSpec('test', spec), { code: 'MISSING', requirement });
+    const { candidates: [entry] } = await engine.suggest('test', requirement);
+    const plugin = await catalog.approve(requirement, entry, { probes, approve: () => true });
     await registry.load(() => plugin);
     const call = () => registry.invoke({ id: 'test.sandbox.echo', range: '^1' }, null, 'test', new AbortController().signal, 'sandbox');
     await assert.rejects(call(), { code: 'DENIED' });
     allowed = true;
-    assert.deepEqual(await call(), expected);
+    await engine.apply(await engine.previewSpec('test', spec));
+    assert.deepEqual((await engine.dispatch('test', 'run', null, 'approved')).data.result, expected);
     await registry.unload(manifest.id);
     await assert.rejects(call(), { code: 'MISSING' });
   });
