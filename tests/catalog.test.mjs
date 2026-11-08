@@ -64,3 +64,34 @@ test('catalog rejects tampered images and permissions, unknown keys and expired 
     probes: [], approve: () => assert.fail('Missing probes bypassed the sandbox'),
   }), { code: 'INVALID' });
 });
+
+test('publisher namespaces bind both plugin identity and every provided capability', async () => {
+  const valid = candidate('1.0.0');
+  let entries = [valid];
+  const catalog = sandboxCatalog({
+    environment: 'node', trustedKeys,
+    publisherScopes: { acme: { plugins: ['acme'], capabilities: ['text'] } },
+    load: async () => entries,
+  });
+  assert.deepEqual(await catalog.discover(requirement), [valid]);
+  for (const mutate of [
+    descriptor => { descriptor.manifest.id = 'acmecopy.normalize'; },
+    descriptor => { descriptor.manifest.provides.push({ id: 'textual.read', version: '1.0.0' }); },
+  ]) {
+    const descriptor = structuredClone(valid.descriptor);
+    mutate(descriptor);
+    const signed = { descriptor, signature: sign(null, Buffer.from(canonical(descriptor)), privateKey).toString('base64url') };
+    entries = [signed];
+    await assert.rejects(catalog.discover(requirement), { code: 'DENIED' });
+    await assert.rejects(catalog.approve(requirement, signed, {
+      probes: [], approve: () => assert.fail('Publisher scope bypassed'),
+    }), { code: 'DENIED' });
+  }
+  entries = [];
+  const registry = new Registry('node');
+  await registry.load(catalog.evolutionPlugin);
+  const proposal = await new Engine(registry).suggest('desk', requirement);
+  assert.deepEqual(proposal.candidates, []);
+  assert.match(proposal.rationale, /No trusted/);
+  assert.match(proposal.next[0], /text\.normalize/);
+});

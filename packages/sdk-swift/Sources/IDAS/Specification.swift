@@ -45,6 +45,8 @@ public struct Specification: Decodable, Sendable {
                 public let label: String
                 public let event: String?
                 public let state: String?
+                public let modes: [String]?
+                public let multiline: Bool?
             }
             public let id: String
             public let title: String
@@ -54,12 +56,21 @@ public struct Specification: Decodable, Sendable {
         public let columns: Int
         public let collapseBelow: Int
         public let theme: Theme
+        public struct Presentation: Decodable, Sendable {
+            public let wide: [[String]]
+            public enum CompactMode: String, Decodable, Sendable { case stack, pages }
+            public let compact: [String]
+            public let compactMode: CompactMode?
+        }
         public let views: [View]
+        public let presentation: Presentation?
     }
     public struct State: Decodable, Sendable { public let initial: [String: JSONValue] }
+    public struct Interaction: Decodable, Sendable { public let initial: String }
     public struct Metadata: Decodable, Sendable { public let schemaVersion: Int }
     public let ui: UI
     public let state: State
+    public let interaction: Interaction?
     public let metadata: Metadata
 
     public enum ReadError: Error { case unsupportedVersion, invalidPresentation }
@@ -81,6 +92,16 @@ public struct Specification: Decodable, Sendable {
                     }
                 })
             }) else { throw ReadError.invalidPresentation }
+        if let presentation = ui.presentation {
+            let viewIDs = Set(ui.views.map(\.id))
+            let wide = presentation.wide.flatMap { $0 }
+            guard presentation.wide.allSatisfy({ (1...4).contains($0.count) }),
+                  wide.count == viewIDs.count, Set(wide) == viewIDs,
+                  presentation.compact.count == viewIDs.count, Set(presentation.compact) == viewIDs,
+                  presentation.compactMode != .stack || presentation.compact == wide else {
+                throw ReadError.invalidPresentation
+            }
+        }
         return decoded
     }
 }

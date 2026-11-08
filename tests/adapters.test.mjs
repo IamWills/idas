@@ -90,15 +90,24 @@ dockerTest('real sandbox uses a read-only root, no network and no host secret, a
       load: async () => [signed],
     });
     const requirement = { id: 'test.sandbox.echo', range: '^1' };
-    const [entry] = await catalog.discover(requirement);
-    const plugin = await catalog.approve(requirement, entry, { probes, approve: () => true });
     let allowed = false;
     const registry = new Registry('node', permission => allowed && permission === 'sandbox.use');
+    await registry.load(catalog.evolutionPlugin);
+    await registry.load(() => standard({ resolve: registry.inspect.bind(registry), tool: registry.invoke.bind(registry) }));
+    const engine = new Engine(registry);
+    const spec = compileOffline({ text: 'stack', scope: 'test', context: null, previous: null });
+    spec.capabilities.push(requirement);
+    spec.workflows.push({ id: 'sandbox', tasks: [{ id: 'run-sandbox', capability: requirement.id, input: null, saveAs: 'result' }] });
+    spec.interaction.rules.find(rule => rule.event === 'run').workflow = 'sandbox';
+    await assert.rejects(engine.previewSpec('test', spec), { code: 'MISSING', requirement });
+    const { candidates: [entry] } = await engine.suggest('test', requirement);
+    const plugin = await catalog.approve(requirement, entry, { probes, approve: () => true });
     await registry.load(() => plugin);
     const call = () => registry.invoke({ id: 'test.sandbox.echo', range: '^1' }, null, 'test', new AbortController().signal, 'sandbox');
     await assert.rejects(call(), { code: 'DENIED' });
     allowed = true;
-    assert.deepEqual(await call(), expected);
+    await engine.apply(await engine.previewSpec('test', spec));
+    assert.deepEqual((await engine.dispatch('test', 'run', null, 'approved')).data.result, expected);
     await registry.unload(manifest.id);
     await assert.rejects(call(), { code: 'MISSING' });
   });

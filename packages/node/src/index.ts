@@ -59,3 +59,4 @@ export { approveSandbox } from './sandbox.js';
 export type { SandboxCandidate, SandboxOptions } from './sandbox.js';
 export { sandboxCatalog } from './catalog.js';
 export type { SandboxCatalog, SandboxCatalogOptions } from './catalog.js';
+export { fileWorkspaceClaim } from './workspace-claim.js';

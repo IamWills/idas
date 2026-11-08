@@ -9,6 +9,8 @@ export interface SandboxCatalogOptions {
   environment: string;
   /** Host-pinned Ed25519 public keys in SPKI PEM format. */
   trustedKeys: Readonly<Record<string, string>>;
+  /** When supplied, each signer must have explicit plugin and capability namespaces. */
+  publisherScopes?: Readonly<Record<string, { plugins: readonly string[]; capabilities: readonly string[] }>>;
   /** Host-owned transport. Return a JSON array from a catalog the host chooses. */
   load(requirement: Readonly<Requirement>, signal: AbortSignal): Promise<unknown>;
 }
@@ -40,6 +42,16 @@ export function sandboxCatalog(options: SandboxCatalogOptions): SandboxCatalog {
     if (key.asymmetricKeyType !== 'ed25519') throw new IdasError('INVALID', 'Catalog key must use Ed25519: ' + name);
     return [name, key] as const;
   }));
+  const scopes = options.publisherScopes && new Map(Object.entries(options.publisherScopes).map(([name, scope]) => {
+    const namespaces = [...scope.plugins, ...scope.capabilities];
+    if (!keys.has(name) || !scope.plugins.length || !scope.capabilities.length ||
+        namespaces.some(namespace => !id.safeParse(namespace).success || namespace === 'idas' || namespace.startsWith('idas.'))) {
+      throw new IdasError('INVALID', 'Invalid publisher scope: ' + name);
+    }
+    return [name, { plugins: [...scope.plugins], capabilities: [...scope.capabilities] }] as const;
+  }));
+  const within = (identifier: string, namespaces: readonly string[]) =>
+    namespaces.some(namespace => identifier === namespace || identifier.startsWith(namespace + '.'));
 
   function verifyCandidate(value: unknown): SignedSandboxDescriptor {
     const parsed = signedSandboxDescriptor.safeParse(value);
@@ -53,10 +65,16 @@ export function sandboxCatalog(options: SandboxCatalogOptions): SandboxCatalog {
       throw new IdasError('DENIED', 'Sandbox descriptor signature could not be verified');
     }
     if (expiresAt <= Date.now()) throw new IdasError('DENIED', 'Sandbox descriptor has expired');
-    if (manifest.requires.length || !semver.valid(manifest.version) ||
+    if (manifest.id === 'idas' || manifest.id.startsWith('idas.') || manifest.requires.length || !semver.valid(manifest.version) ||
         manifest.provides.some(p => p.id.startsWith('idas.') || !semver.valid(p.version)) ||
         new Set(manifest.provides.map(p => p.id)).size !== manifest.provides.length) {
       throw new IdasError('INVALID', 'Catalog entries must provide valid standalone tool capabilities');
+    }
+    if (scopes) {
+      const scope = scopes.get(keyId);
+      if (!scope || !within(manifest.id, scope.plugins) || manifest.provides.some(p => !within(p.id, scope.capabilities))) {
+        throw new IdasError('DENIED', 'Sandbox descriptor exceeds the publisher namespace');
+      }
     }
     return entry;
   }
@@ -120,9 +138,14 @@ export function sandboxCatalog(options: SandboxCatalogOptions): SandboxCatalog {
           const candidates = await discover(requirement, ctx.signal);
           return clone({
             requirement, status: 'proposal', candidates,
+            rationale: candidates.length
+              ? 'These signed plugins match the requested capability, version and environment.'
+              : 'No trusted catalog entry matches the capability, version and environment.',
             next: candidates.length
               ? ['Review a candidate', 'Run isolated contract tests', 'Request host approval']
-              : ['Find or implement a matching plugin'],
+              : ['Define a JSON input and output contract for ' + requirement.id,
+                'Implement a standalone tool and declare the required capability version',
+                'Package and sign an immutable image', 'Prepare host-authored sandbox probes'],
           });
         },
       };

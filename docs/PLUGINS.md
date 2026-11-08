@@ -50,3 +50,18 @@ const candidates = await catalog.discover(requirement);
 Review the candidates and provision the selected immutable image into the host's Docker daemon. Pass the selected entry, host-authored probes, and an approval callback to `catalog.approve(requirement, entry, { probes, approve })`. It rechecks the signature, expiry and compatibility, then runs the existing sandbox approval flow. Register the returned plugin with `registry.load(() => plugin)` after approval. Registry permission checks still govern invocation.
 
 Publishers create a JSON envelope containing `descriptor` and `signature`. The descriptor contains `format: 'idas.sandbox.v1'`, `keyId`, `expiresAt` in Unix milliseconds, `image` pinned by SHA-256, and the full plugin `manifest`. With Node's Ed25519 private key, calculate the signature as `sign(null, Buffer.from(canonical(descriptor), 'utf8'), privateKey).toString('base64url')`. Import `canonical` from `@intent-driven/contracts`. Catalog discovery rejects malformed or unverifiable entries and returns compatible releases ordered by capability version.
+
+### Configure the structured model request
+
+Pass `{ available: registry.available.bind(registry), repair: true }` to `modelCompiler()` to send a validated `ModelRequest` to the model plugin. The request contains intent text, scope, the host context, the previous IDSS, JSON Schema and authorized tool versions. On a schema or semantic failure, the compiler retries once with a bounded diagnostic. Providers that use the original request shape can omit the option. Scope and capability checks still run in Engine before a preview can be applied.
+
+### Run the extension example
+
+Create a private host configuration JSON object with `spec`, `trustedKeys`, `publisherScopes`, `entries`, `probes` and `grants`. The spec must reference the missing capability. Each signer in `publisherScopes` has `plugins` and `capabilities` arrays of dot-delimited namespaces. Entries are signed descriptor envelopes. Probes are the same host-authored `{ capability, input, expected }` entries accepted by the sandbox, and grants are explicit permission strings for the selected plugin.
+
+```sh
+node examples/node-agent/extension.mjs suggest ./host-config.json
+node examples/node-agent/extension.mjs activate ./host-config.json SIGNATURE run
+```
+
+The first command returns the matching signed candidates or a development checklist. Review the exact candidate and provision its immutable image before running the second command. The signature selects a reviewed descriptor. Activation verifies it again, runs the sandbox probes, and registers the plugin for that invocation. The optional final argument dispatches an event after applying the specification.

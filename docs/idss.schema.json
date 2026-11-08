@@ -107,6 +107,18 @@
                     "state": {
                       "type": "string",
                       "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                    },
+                    "modes": {
+                      "minItems": 1,
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                      }
+                    },
+                    "multiline": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -125,6 +137,46 @@
             ],
             "additionalProperties": false
           }
+        },
+        "presentation": {
+          "type": "object",
+          "properties": {
+            "wide": {
+              "minItems": 1,
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "minItems": 1,
+                "maxItems": 4,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                }
+              }
+            },
+            "compact": {
+              "minItems": 1,
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+              }
+            },
+            "compactMode": {
+              "type": "string",
+              "enum": [
+                "stack",
+                "pages"
+              ]
+            }
+          },
+          "required": [
+            "wide",
+            "compact"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -198,6 +250,31 @@
               "workflow": {
                 "type": "string",
                 "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+              },
+              "input": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "text"
+                  },
+                  "minLength": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "maxLength": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000
+                  }
+                },
+                "required": [
+                  "kind",
+                  "minLength",
+                  "maxLength"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -271,6 +348,21 @@
                 "saveAs": {
                   "type": "string",
                   "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                },
+                "inputFrom": {
+                  "type": "string",
+                  "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                },
+                "inputBindings": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                  },
+                  "additionalProperties": {
+                    "type": "string",
+                    "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                  }
                 }
               },
               "required": [

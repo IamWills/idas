@@ -1,5 +1,5 @@
-import { canonical, clone, IdasError, services, specification, id } from '@intent-driven/contracts';
-import type { Json, Requirement, Snapshot, Specification } from '@intent-driven/contracts';
+import { adaptationContext, adaptationProposal, canonical, clone, IdasError, services, specification, id } from '@intent-driven/contracts';
+import type { AdaptationContext, Json, Requirement, Snapshot, Specification } from '@intent-driven/contracts';
 import { Registry, checkAbort } from './registry.js';
 export { Registry } from './registry.js';
 export type { Authorization } from './registry.js';
@@ -15,6 +15,8 @@ export interface Options { signal?: AbortSignal; timeoutMs?: number }
 export interface EngineOptions {
   approve?: (change: Readonly<Change>, signal: AbortSignal) => boolean | Promise<boolean>;
   maxTimeoutMs?: number;
+  /** Opt in to a host-provided scope claim for mutations across engine instances. */
+  workspaceClaim?: boolean;
 }
 const req = (id: string): Requirement => ({ id, range: '^1.0.0' });
 const decode = <T>(v: Json): T => v as T; // Internal service results are from host-trusted plugins.
@@ -75,6 +77,22 @@ export class Engine {
       return this.#issue(await this.#inspect(candidate, scope, current, signal));
     });
   }
+  recommend(scope: string, context: AdaptationContext, options: Options = {}): Promise<{ reason: string; change: Change } | null> {
+    return this.#run(scope, options, async signal => {
+      const parsed = adaptationContext.safeParse(clone(context));
+      if (!parsed.success) throw new IdasError('INVALID', 'Invalid adaptation context');
+      const current = await this.#read(scope, signal);
+      if (!current) throw new IdasError('MISSING', 'Workspace has no specification');
+      const suggestion = await this.#call(services.adaptation,
+        { context: parsed.data, previous: current.spec, mode: current.mode }, scope, signal);
+      if (suggestion === null) return null;
+      const proposal = adaptationProposal.safeParse(suggestion);
+      if (!proposal.success) throw new IdasError('INVALID', 'Invalid adaptation proposal');
+      const candidate = await this.#call(services.compiler,
+        { text: proposal.data.intent, context: parsed.data, scope, previous: current.spec }, scope, signal);
+      return { reason: proposal.data.reason, change: this.#issue(await this.#inspect(candidate, scope, current, signal)) };
+    });
+  }
   previewSpec(scope: string, candidate: unknown, options: Options = {}): Promise<Change> {
     return this.#run(scope, options, async signal => this.#issue(await this.#inspect(candidate, scope, await this.#read(scope, signal), signal)));
   }
@@ -94,7 +112,7 @@ export class Engine {
     return next;
   }
   apply(change: Change, options: Options = {}): Promise<Snapshot> {
-    return this.#run(change.scope, options, async signal => {
+    return this.#run(change.scope, options, signal => this.#withClaim(change.scope, signal, async () => {
       if (this.#previews.get(change) !== canonical(change)) throw new IdasError('INVALID', 'Use an unchanged preview from this engine');
       const current = await this.#read(change.scope, signal);
       if ((current?.revision ?? 0) !== change.base) throw new IdasError('CONFLICT', 'Preview is stale');
@@ -114,7 +132,7 @@ export class Engine {
       }
       const mode = current && spec.interaction.states.includes(current.mode) ? current.mode : spec.interaction.initial;
       return this.#write(scope, base, { revision: base + 1, spec, data, mode, receipts: current?.receipts ?? [] }, signal);
-    });
+    }));
   }
   snapshot(scope: string, options: Options = {}): Promise<Snapshot | null> { return this.#run(scope, options, signal => this.#read(scope, signal)); }
   view(scope: string, options: Options = {}): Promise<Json> {
@@ -127,9 +145,12 @@ export class Engine {
   suggest(scope: string, requirement: Requirement, options: Options = {}): Promise<Json> {
     return this.#run(scope, options, signal => this.#call(services.evolution, requirement, scope, signal));
   }
-  rollback(scope: string, revision: number, options: Options = {}): Promise<Snapshot> {
-    return this.#run(scope, options, async signal => {
+  rollback(scope: string, revision: number, options: Options & { expectedRevision?: number } = {}): Promise<Snapshot> {
+    return this.#run(scope, options, signal => this.#withClaim(scope, signal, async () => {
       const current = await this.#read(scope, signal);
+      if (options.expectedRevision !== undefined && current?.revision !== options.expectedRevision) {
+        throw new IdasError('CONFLICT', 'Workspace changed since the rollback was prepared');
+      }
       const history = decode<Snapshot[]>(await this.#call(services.state, { action: 'history', scope }, scope, signal));
       const target = history.find(x => x.revision === revision);
       if (!current || !target) throw new IdasError('MISSING', 'Revision unavailable');
@@ -137,31 +158,48 @@ export class Engine {
       await this.#approve(change, signal);
       await this.#call(services.composer, change.spec, scope, signal);
       return this.#write(scope, current.revision, { ...target, spec: change.spec, revision: current.revision + 1, receipts: current.receipts }, signal);
-    });
+    }));
   }
   dispatch(scope: string, event: string, input: Json, eventId: string, options: Options = {}): Promise<Snapshot> {
     return this.#run(scope, options, async (signal, expire) => {
       if (!id.safeParse(event).success || !id.safeParse(eventId).success) throw new IdasError('INVALID', 'Invalid event or event ID');
-      const current = await this.#read(scope, signal);
-      if (!current) throw new IdasError('MISSING', 'Workspace has no specification');
-      const fingerprint = canonical([event, input]);
-      if (fingerprint.length > 4096) throw new IdasError('INVALID', 'Event payload exceeds size limit');
-      const previous = current.receipts.find(x => x.id === eventId);
-      if (previous) {
-        if (previous.fingerprint !== fingerprint) throw new IdasError('CONFLICT', 'Event ID already used for different input');
-        return current;
-      }
-      const timeout = setTimeout(expire, current.spec.policy.timeoutMs);
-      try {
-        const auth = await this.#call(services.policy, { action: 'dispatch', scope, event, spec: current.spec }, scope, signal);
-        if (auth !== true) throw new IdasError('DENIED', 'Host policy rejected the event');
-        const next = decode<{ data: Snapshot['data']; mode: string; workflow?: string }>(
-          await this.#call(services.interaction, { current, event, input }, scope, signal, eventId));
-        const data = next.workflow ? decode<Snapshot['data']>(await this.#call(services.workflow,
-          { workflow: next.workflow, spec: current.spec, data: next.data, scope }, scope, signal, eventId)) : next.data;
-        return await this.#write(scope, current.revision, { ...current, data, mode: next.mode,
-          revision: current.revision + 1, receipts: [...current.receipts.slice(-99), { id: eventId, fingerprint }] }, signal);
-      } finally { clearTimeout(timeout); }
+      return this.#withClaim(scope, signal, () => this.#dispatch(scope, event, input, eventId, signal, expire));
     });
+  }
+  async #withClaim<T>(scope: string, signal: AbortSignal, work: () => Promise<T>): Promise<T> {
+    checkAbort(signal);
+    if (!this.options.workspaceClaim) return work();
+    // Let acquisition and release finish even if the caller has cancelled.
+    const claimSignal = new AbortController().signal;
+    const token = await this.#call(services.workspaceClaim, { action: 'acquire', scope }, scope, claimSignal);
+    if (typeof token !== 'string' || !token) throw new IdasError('INVALID', 'Invalid workspace claim token');
+    try {
+      checkAbort(signal);
+      return await work();
+    } finally {
+      await this.#call(services.workspaceClaim, { action: 'release', scope, token }, scope, claimSignal);
+    }
+  }
+  async #dispatch(scope: string, event: string, input: Json, eventId: string, signal: AbortSignal, expire: () => void): Promise<Snapshot> {
+    const current = await this.#read(scope, signal);
+    if (!current) throw new IdasError('MISSING', 'Workspace has no specification');
+    const fingerprint = canonical([event, input]);
+    if (fingerprint.length > 4096) throw new IdasError('INVALID', 'Event payload exceeds size limit');
+    const previous = current.receipts.find(x => x.id === eventId);
+    if (previous) {
+      if (previous.fingerprint !== fingerprint) throw new IdasError('CONFLICT', 'Event ID already used for different input');
+      return current;
+    }
+    const timeout = setTimeout(expire, current.spec.policy.timeoutMs);
+    try {
+      const auth = await this.#call(services.policy, { action: 'dispatch', scope, event, spec: current.spec }, scope, signal);
+      if (auth !== true) throw new IdasError('DENIED', 'Host policy rejected the event');
+      const next = decode<{ data: Snapshot['data']; mode: string; workflow?: string }>(
+        await this.#call(services.interaction, { current, event, input }, scope, signal, eventId));
+      const data = next.workflow ? decode<Snapshot['data']>(await this.#call(services.workflow,
+        { workflow: next.workflow, spec: current.spec, data: next.data, scope }, scope, signal, eventId)) : next.data;
+      return await this.#write(scope, current.revision, { ...current, data, mode: next.mode,
+        revision: current.revision + 1, receipts: [...current.receipts.slice(-99), { id: eventId, fingerprint }] }, signal);
+    } finally { clearTimeout(timeout); }
   }
 }

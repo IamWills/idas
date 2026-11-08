@@ -12,6 +12,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp.d.ts",
+      "default": "./dist/mcp.js"
     }
   },
   "publishConfig": {
@@ -19,6 +23,9 @@
   },
   "dependencies": {
     "@intent-driven/contracts": "workspace:^",
-    "semver": "^7.7.2"
+    "semver": "^7.7.2",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "@intent-driven/core": "workspace:^",
+    "zod": "^4.1.0"
   }
 }

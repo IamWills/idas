@@ -39,6 +39,16 @@ export function validate(input: unknown): Specification {
   const s = parsed.data;
   const hasState = (key: string) => Object.hasOwn(s.state.initial, key);
   unique(s.ui.views.map(v => v.id), 'view');
+  if (s.ui.presentation) {
+    const { wide, compact, compactMode } = s.ui.presentation;
+    for (const layout of [wide.flat(), compact]) {
+      unique(layout, 'presentation view');
+      need(layout.length === s.ui.views.length && layout.every(key => s.ui.views.some(view => view.id === key)),
+        'Each presentation must reference every view once');
+    }
+    need(compactMode !== 'stack' || wide.flat().every((key, index) => key === compact[index]),
+      'Compact stacks must preserve reading order');
+  }
   unique(s.interaction.states, 'interaction state');
   unique(s.workflows.map(w => w.id), 'workflow');
   unique(s.capabilities.map(c => c.id), 'capability');
@@ -50,6 +60,7 @@ export function validate(input: unknown): Specification {
     need(s.interaction.states.includes(r.from) && s.interaction.states.includes(r.to), 'Invalid transition state');
     need(!r.workflow || s.workflows.some(w => w.id === r.workflow), 'Unknown workflow: ' + r.workflow);
     need(!r.capture || hasState(r.capture), 'Unknown capture state: ' + r.capture);
+    need(!r.input || r.input.minLength <= r.input.maxLength, 'Invalid text length range for event: ' + r.event);
     for (const write of r.set ?? []) need(hasState(write.key), 'Unknown state write: ' + write.key);
   }
   for (const view of s.ui.views) {
@@ -60,12 +71,18 @@ export function validate(input: unknown): Specification {
       need(c.kind !== 'button' || c.event, 'Button requires an event');
       need(c.kind !== 'input' || (c.event && c.state), 'Input requires state and event');
       need(c.kind !== 'value' || c.state, 'Value requires state');
+      need(c.modes?.every(mode => s.interaction.states.includes(mode)) ?? true, 'Unknown component mode: ' + c.id);
+      need(c.multiline === undefined || c.kind === 'input', 'Only inputs can be multiline');
     }
   }
   for (const w of s.workflows) for (const t of orderedTasks(w.tasks)) {
     need(!t.capability.startsWith('idas.') && s.capabilities.some(c => c.id === t.capability), 'Task must reference a declared tool capability: ' + t.capability);
     need(!t.saveAs || hasState(t.saveAs), 'Unknown task output state: ' + t.saveAs);
     need(!t.when || hasState(t.when.key), 'Unknown task condition state');
+    need(!t.inputFrom || hasState(t.inputFrom), 'Unknown task input state: ' + t.inputFrom);
+    need(!(t.inputFrom && t.inputBindings), 'Task cannot use two input binding forms');
+    need(!(t.inputFrom || t.inputBindings) || t.input === null, 'Bound task input requires a null literal placeholder');
+    for (const key of Object.values(t.inputBindings ?? {})) need(hasState(key), 'Unknown task input state: ' + key);
   }
   return s;
 }
