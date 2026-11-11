@@ -1,5 +1,5 @@
-import { canonical, clone, IdasError, jsonSchema, modelRequest, services } from '@intent-driven/contracts';
-import type { Json, Plugin, Snapshot, Store, Specification, Requirement, Invocation } from '@intent-driven/contracts';
+import { bindingValue, canonical, clone, componentContract, componentProps, findForm, IdasError, jsonSchema, modelRequest, services, validateFormPayload } from '@intent-driven/contracts';
+import type { Component, ComponentContract, Json, Plugin, Snapshot, Store, Specification, Requirement, Invocation, StateBinding } from '@intent-driven/contracts';
 import { orderedTasks, validate } from './spec.js';
 export { migrate, validate } from './spec.js';
 
@@ -30,6 +30,25 @@ export function standard(options: StandardOptions): Plugin {
   const memory = memoryStore();
   const names = [services.specification, services.resolver, services.state, services.policy, services.composer,
     services.interaction, services.workflow, services.compiler, services.evolution];
+  async function checkComponents(spec: Specification, data: Snapshot['data'], ctx: Invocation) {
+    const contracts = new Map<string, ComponentContract>();
+    async function visit(node: Component): Promise<void> {
+      if (node.kind === 'layout') for (const child of node.children) await visit(child);
+      if (node.kind !== 'plugin') return;
+      const key = node.capability + '@' + node.version;
+      let contract = contracts.get(key);
+      if (!contract) {
+        const description = await options.tool({ id: node.capability, range: node.version }, { action: 'describe' },
+          spec.intent.scope, ctx.signal, ctx.operation);
+        const parsed = componentContract.safeParse(description);
+        if (!parsed.success) throw new IdasError('INVALID', 'Invalid component contract for ' + key);
+        contract = parsed.data;
+        contracts.set(key, contract);
+      }
+      componentProps(node, contract, data);
+    }
+    for (const view of spec.ui.views) for (const node of view.components) await visit(node);
+  }
   return {
     manifest: { id: 'idas.standard', version: '1.0.0', environments: ['any'], requires: [], permissions: [],
       provides: names.map(id => ({ id, version: '1.0.0' })) },
@@ -41,7 +60,11 @@ export function standard(options: StandardOptions): Plugin {
         return requirements.map(r => ({ capability: r.id, ...options.resolve(r, scope) }));
       }
       if (id === services.policy) return await options.policy?.(input, ctx.signal) ?? true;
-      if (id === services.composer) return clone(validate(input).ui);
+      if (id === services.composer) {
+        const spec = validate(input);
+        await checkComponents(spec, spec.state.initial, ctx);
+        return clone(spec.ui);
+      }
       if (id === services.evolution) {
         const r = input as unknown as Requirement;
         return { requirement: clone(r), status: 'proposal', next: ['Find or implement a matching plugin', 'Run isolated contract tests', 'Request host approval'] };
@@ -60,6 +83,7 @@ export function standard(options: StandardOptions): Plugin {
             throw new IdasError('INVALID', 'Persistence mode cannot change for an existing workspace');
           }
           ctx.signal.throwIfAborted();
+          await checkComponents(request.next.spec, request.next.data, ctx);
           return (request.next.spec.state.persistent ? store : memory).compareAndSwap(scope, request.expected, request.next, ctx.signal);
         }
       }
@@ -67,8 +91,13 @@ export function standard(options: StandardOptions): Plugin {
         const { current, event, input: payload } = input as unknown as { current: Snapshot; event: string; input: Json };
         const rule = current.spec.interaction.rules.find(r => r.from === current.mode && r.event === event);
         if (!rule) throw new IdasError('INVALID', 'Event ' + event + ' is not available in ' + current.mode);
-        if (rule.input && (typeof payload !== 'string' || payload.length < rule.input.minLength || payload.length > rule.input.maxLength)) {
+        if (rule.input?.kind === 'text' && (typeof payload !== 'string' || payload.length < rule.input.minLength || payload.length > rule.input.maxLength)) {
           throw new IdasError('INVALID', 'Event ' + event + ' requires text of length ' + rule.input.minLength + '–' + rule.input.maxLength);
+        }
+        if (rule.input?.kind === 'form') {
+          const form = findForm(current.spec.ui, rule.input.id);
+          if (!form) throw new IdasError('INVALID', 'Missing form contract');
+          validateFormPayload(form, payload);
         }
         const data = { ...current.data };
         for (const write of rule.set ?? []) data[write.key] = write.value;
@@ -89,9 +118,14 @@ export function standard(options: StandardOptions): Plugin {
             (task.when && canonical(next[task.when.key]) !== canonical(task.when.equals))) { skipped.add(task.id); continue; }
           const requirement = spec.capabilities.find(c => c.id === task.capability)!;
           let taskInput = task.input;
-          if (task.inputFrom) taskInput = next[task.inputFrom]!;
+          const readBinding = (binding: StateBinding) => {
+            const value = bindingValue(next, binding);
+            if (value === undefined) throw new IdasError('INVALID', 'Missing input binding for task ' + task.id);
+            return value;
+          };
+          if (task.inputFrom) taskInput = readBinding(task.inputFrom);
           if (task.inputBindings) {
-            taskInput = Object.fromEntries(Object.entries(task.inputBindings).map(([key, state]) => [key, next[state]!]));
+            taskInput = Object.fromEntries(Object.entries(task.inputBindings).map(([key, binding]) => [key, readBinding(binding)]));
           }
           const output = await options.tool(requirement, taskInput, scope, ctx.signal, canonical([ctx.operation, workflow, task.id]));
           if (task.saveAs) next[task.saveAs] = output;

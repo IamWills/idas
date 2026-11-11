@@ -39,7 +39,7 @@ public struct Specification: Decodable, Sendable {
         public enum Theme: String, Decodable, Sendable { case light, dark, system }
         public struct View: Decodable, Sendable, Identifiable {
             public struct Component: Decodable, Sendable, Identifiable {
-                public enum Kind: String, Decodable, Sendable { case text, button, input, value }
+                public enum Kind: String, Decodable, Sendable { case text, button, input, value, layout, plugin, form }
                 public let id: String
                 public let kind: Kind
                 public let label: String
@@ -47,6 +47,29 @@ public struct Specification: Decodable, Sendable {
                 public let state: String?
                 public let modes: [String]?
                 public let multiline: Bool?
+                public enum NestedLayout: String, Decodable, Sendable { case stack, row, grid }
+                public let layout: NestedLayout?
+                public let columns: Int?
+                public let children: [Self]?
+                public let capability: String?
+                public let version: String?
+                public let props: [String: JSONValue]?
+                public let bindings: [String: StateBinding]?
+                public struct Field: Decodable, Sendable, Identifiable {
+                    public enum Kind: String, Decodable, Sendable { case text, number, boolean, choice }
+                    public struct Option: Decodable, Sendable { public let value: String; public let label: String }
+                    public let id: String
+                    public let label: String
+                    public let kind: Kind
+                    public let required: Bool?
+                    public let binding: StateBinding?
+                    public let minLength: Int?
+                    public let maxLength: Int?
+                    public let min: Double?
+                    public let max: Double?
+                    public let options: [Option]?
+                }
+                public let fields: [Field]?
             }
             public let id: String
             public let title: String
@@ -64,13 +87,24 @@ public struct Specification: Decodable, Sendable {
         }
         public let views: [View]
         public let presentation: Presentation?
+        public struct Navigation: Decodable, Sendable {
+            public struct Route: Decodable, Hashable, Sendable { public let from: String; public let to: String }
+            public let initial: String
+            public let routes: [Route]
+        }
+        public let navigation: Navigation?
     }
     public struct State: Decodable, Sendable { public let initial: [String: JSONValue] }
     public struct Interaction: Decodable, Sendable { public let initial: String }
     public struct Metadata: Decodable, Sendable { public let schemaVersion: Int }
+    public struct Capability: Decodable, Sendable {
+        public let id: String
+        public let range: String
+    }
     public let ui: UI
     public let state: State
     public let interaction: Interaction?
+    public let capabilities: [Capability]?
     public let metadata: Metadata
 
     public enum ReadError: Error { case unsupportedVersion, invalidPresentation }
@@ -80,18 +114,61 @@ public struct Specification: Decodable, Sendable {
         guard decoded.metadata.schemaVersion == 1 else { throw ReadError.unsupportedVersion }
         let ui = decoded.ui
         guard (1...4).contains(ui.columns), (320...1600).contains(ui.collapseBelow), (1...20).contains(ui.views.count),
-            Set(ui.views.map(\.id)).count == ui.views.count,
-            ui.views.allSatisfy({ view in
-                view.components.count <= 100 && Set(view.components.map(\.id)).count == view.components.count &&
-                view.components.allSatisfy({ c in
-                    switch c.kind {
-                    case .button: return c.event != nil
-                    case .input: return c.event != nil && c.state.flatMap { decoded.state.initial[$0] } != nil
-                    case .value: return c.state.flatMap { decoded.state.initial[$0] } != nil
-                    case .text: return true
+              Set(ui.views.map(\.id)).count == ui.views.count else { throw ReadError.invalidPresentation }
+        for view in ui.views {
+            var identifiers = Set<String>()
+            func valid(_ component: UI.View.Component, depth: Int) -> Bool {
+                guard depth <= 12, identifiers.count < 100, identifiers.insert(component.id).inserted else { return false }
+                switch component.kind {
+                case .button: return component.event != nil
+                case .input: return component.event != nil && component.state.flatMap { decoded.state.initial[$0] } != nil
+                case .value: return component.state.flatMap { decoded.state.initial[$0] } != nil
+                case .text: return true
+                case .layout:
+                    guard let layout = component.layout, let children = component.children,
+                          component.columns.map({ layout == .grid && (1...4).contains($0) }) ?? true else { return false }
+                    return children.allSatisfy { valid($0, depth: depth + 1) }
+                case .form:
+                    guard component.event != nil, let fields = component.fields, (1...20).contains(fields.count),
+                          Set(fields.map(\.id)).count == fields.count else { return false }
+                    return fields.allSatisfy { field in
+                        switch field.kind {
+                        case .text: return (field.minLength ?? 0) >= 0 && (field.minLength ?? 0) <= (field.maxLength ?? 1000) &&
+                            (1...1000).contains(field.maxLength ?? 1000)
+                        case .number: return (field.min ?? -.infinity) <= (field.max ?? .infinity)
+                        case .boolean: return true
+                        case .choice:
+                            guard let options = field.options, (1...30).contains(options.count) else { return false }
+                            return Set(options.map(\.value)).count == options.count
+                        }
                     }
-                })
-            }) else { throw ReadError.invalidPresentation }
+                case .plugin:
+                    guard let capability = component.capability, capability.hasPrefix("ui."), capability.count > 3,
+                          let version = component.version, version.range(of: #"^\d+\.\d+\.\d+$"#, options: .regularExpression) != nil,
+                          decoded.capabilities?.contains(where: { $0.id == capability && $0.range == version }) == true else { return false }
+                    return (component.bindings ?? [:]).allSatisfy { key, state in
+                        component.props?[key] == nil && state.value(in: decoded.state.initial) != nil
+                    }
+                }
+            }
+            guard view.components.allSatisfy({ valid($0, depth: 1) }) else { throw ReadError.invalidPresentation }
+        }
+        if let navigation = ui.navigation {
+            let ids = Set(ui.views.map(\.id))
+            guard ids.contains(navigation.initial), navigation.routes.count <= 380,
+                  Set(navigation.routes).count == navigation.routes.count,
+                  navigation.routes.allSatisfy({ ids.contains($0.from) && ids.contains($0.to) && $0.from != $0.to }) else {
+                throw ReadError.invalidPresentation
+            }
+            var reachable = Set([navigation.initial])
+            var pending = [navigation.initial]
+            while let id = pending.popLast() {
+                for route in navigation.routes where route.from == id && reachable.insert(route.to).inserted {
+                    pending.append(route.to)
+                }
+            }
+            guard reachable == ids else { throw ReadError.invalidPresentation }
+        }
         if let presentation = ui.presentation {
             let viewIDs = Set(ui.views.map(\.id))
             let wide = presentation.wide.flatMap { $0 }

@@ -10,6 +10,7 @@
     "build": "tsc -b",
     "test": "pnpm build && node --test tests/*.test.mjs",
     "test:bun": "bun test tests/*.test.mjs",
+    "test:model": "pnpm build && IDAS_MODEL_EVAL=1 node --test --test-name-pattern='^live model A–D' tests/workbench.test.mjs",
     "schema": "node scripts/schema.mjs",
     "demo": "node examples/node-agent/demo.mjs",
     "web": "pnpm --filter idas-web dev",

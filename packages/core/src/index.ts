@@ -65,6 +65,9 @@ export class Engine {
     const resolved = await this.#call(services.resolver, { requirements: spec.capabilities, scope }, scope, signal);
     const bindings = spec.capabilities.map(r => ({ capability: r.id, ...this.registry.inspect(r, scope) }));
     if (canonical(resolved) !== canonical(bindings)) throw new IdasError('INVALID', 'Resolver returned bindings different from the authorized runtime');
+    if (spec.capabilities.some(requirement => requirement.id.startsWith('ui.'))) {
+      await this.#call(services.composer, spec, scope, signal);
+    }
     const previous = current?.spec;
     return { scope, base: current?.revision ?? 0, spec, bindings,
       sections: (Object.keys(spec) as (keyof Specification)[]).filter(k => !previous || canonical(previous[k]) !== canonical(spec[k])) };

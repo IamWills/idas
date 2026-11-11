@@ -65,3 +65,53 @@ node examples/node-agent/extension.mjs activate ./host-config.json SIGNATURE run
 ```
 
 The first command returns the matching signed candidates or a development checklist. Review the exact candidate and provision its immutable image before running the second command. The signature selects a reviewed descriptor. Activation verifies it again, runs the sandbox probes, and registers the plugin for that invocation. The optional final argument dispatches an event after applying the specification.
+
+## Register a native UI component
+
+Use `uiComponentPlugin` from `@intent-driven/contracts` to register a portable property contract. The host separately binds trusted renderer code to the exact `capability@version` key. One IDSS node can select a React component in the browser and a SwiftUI view in a native host.
+
+```ts
+const contract = {
+  properties: { value: { kind: 'string', required: true } },
+  emitsEvent: true,
+} as const;
+
+await registry.load(() => uiComponentPlugin(
+  { id: 'example.status', version: '1.0.0', environments: ['any'], permissions: [] },
+  { id: 'ui.example.status', version: '1.0.0', contract },
+));
+```
+
+Add `{ "id": "ui.example.status", "range": "1.0.0" }` to IDSS capabilities. Put a node like this in a view or inside the children of a layout.
+
+```json
+{
+  "id": "status-badge",
+  "kind": "plugin",
+  "label": "Status",
+  "capability": "ui.example.status",
+  "version": "1.0.0",
+  "bindings": { "value": "status" },
+  "event": "acknowledge-status"
+}
+```
+
+`kind: "layout"` nodes accept ordered `children` and a `layout` of `stack`, `row`, or `grid`. Grids accept one to four columns. A view can contain up to 100 nodes and twelve levels. Node IDs are unique within the whole view.
+
+Use `props` for literal values and `bindings` to read top-level committed state by key. The same property cannot have both. Property contracts accept string, number, boolean and JSON values, and can mark individual properties required. The standard composer validates the declared initial values during preview. Standard state storage validates resolved values again before committing. Renderers also check their own native contract before calling the implementation.
+
+For React, pass a map of `ReactComponentRegistration` objects to `Workspace`. For SwiftUI, pass a dictionary of `NativeComponent` objects with the same property contract. The renderer can emit a payload through the callback for the event declared on the node. Engine policy and state-machine rules govern that event. Hosts without a native registration show an unavailable message. IDSS carries only data, and component capabilities cannot run as workflow tools.
+
+Try the workbench's **Add a status badge** intent. Apply the preview, then acknowledge the badge to see the bound state update. The same capability is registered by the shared host and rendered natively by both example clients.
+
+## Add a typed form
+
+A `kind: "form"` node declares up to 20 fields and one event. React and SwiftUI render text and number inputs, booleans and enumerated choices. Set `required` to require a field in the submitted object. A required boolean can be false. Text fields accept `minLength` and `maxLength`. Number fields accept `min` and `max`. A choice field must list its allowed options.
+
+Each transition for the form's event uses `input: { "kind": "form", "id": "<form-id>" }`. The interaction plugin rejects unexpected keys and invalid values before it captures data or starts a workflow. Form IDs are unique across the specification.
+
+A state binding accepts either a top-level key or `{ "state": "releaseSettings", "path": ["channel"] }`. Paths can address object keys and array indices, such as `["0", "title"]`. Forms use bindings as defaults. Native component properties and workflow inputs can use the same paths. A missing workflow input fails before that tool runs.
+
+Optional `ui.navigation` declares an `initial` view and directed `routes` as `{ "from": "editor", "to": "agent" }` pairs. Each view must be reachable from the initial view. The renderer uses the routes for single-view navigation. Wide panels and compact stacks retain their declared layout. Routes control presentation. The engine still checks state and policy when it receives an event.
+
+To try the example, create a developer workbench and select **Add a release settings form**. The form appears in the Agent panel. In the shared workspace, submit it on either platform and refresh the other to see the saved values.

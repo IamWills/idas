@@ -2,7 +2,7 @@ import { Engine, Registry } from '../../packages/core/dist/index.js';
 import { echoPlugin, modelCompiler, standard } from '../../packages/standard/dist/index.js';
 import { fileStore, fileWorkspaceClaim } from '../../packages/node/dist/index.js';
 import { serveWorkspaceMcpStdio } from '../../packages/node/dist/mcp.js';
-import { workbenchAdaptation, workbenchCompiler, workbenchTools } from '../web/workbench.ts';
+import { workbenchAdaptation, workbenchBadge, workbenchCompiler, workbenchTools } from '../web/workbench.ts';
 import { httpModel } from './http-model.mjs';
 
 const directory = process.env.IDAS_DATA ?? '.idas-data';
@@ -15,6 +15,7 @@ await registry.load(() => standard({
 }));
 await registry.load(echoPlugin);
 await registry.load(workbenchTools);
+await registry.load(workbenchBadge);
 await registry.load(workbenchCompiler);
 await registry.load(workbenchAdaptation);
 await registry.load(() => fileWorkspaceClaim(directory));
