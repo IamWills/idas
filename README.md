@@ -38,6 +38,14 @@ IDAS_MODEL_URL=http://127.0.0.1:8787/compile pnpm demo apply 'Give this workspac
 
 The request includes the committed specification, the IDSS JSON Schema, the workspace's authorized tool versions and an optional repair diagnostic. The offline compiler remains the default. See [model and extension integration](docs/PLUGINS.md).
 
+Run the v0.2 workbench acceptance suite against a configured model service:
+
+```sh
+IDAS_MODEL_URL=http://127.0.0.1:8787/compile pnpm test:model
+```
+
+The suite starts a fresh in-memory workspace for each English and Chinese prompt sequence. It sends synthetic workbench data, the tool input contracts and the previously applied specification to the endpoint. Both runs must pass the layout, diff confirmation, release branching, revision and grant checks. The regular CI suite runs the same checks with a deterministic HTTP fixture.
+
 See the [implementation audit](docs/IMPLEMENTATION.md) for actual coverage and the [product roadmap](docs/ROADMAP.md) for the remaining release gates.
 
 ## Share a local workspace across browser and SwiftUI

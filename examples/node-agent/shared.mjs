@@ -6,7 +6,7 @@ import { Engine, Registry } from '../../packages/core/dist/index.js';
 import { adaptationContext, assertJson, IdasError, id, MissingCapabilityError } from '../../packages/contracts/dist/index.js';
 import { standard } from '../../packages/standard/dist/index.js';
 import { fileStore, fileWorkspaceClaim } from '../../packages/node/dist/index.js';
-import { workbenchAdaptation, workbenchCompiler, workbenchTools } from '../web/workbench.ts';
+import { workbenchAdaptation, workbenchBadge, workbenchCompiler, workbenchTools } from '../web/workbench.ts';
 
 import { sharedExtensions } from './shared-extensions.mjs';
 
@@ -54,6 +54,7 @@ export async function createSharedWorkspace({ directory, token, extensions }) {
   await registry.load(workbenchCompiler);
   await registry.load(workbenchAdaptation);
   await registry.load(workbenchTools);
+  await registry.load(workbenchBadge);
   await registry.load(() => fileWorkspaceClaim(directory));
   if (extensionHost) await registry.load(extensionHost.plugin);
   const engine = new Engine(registry, { workspaceClaim: true });

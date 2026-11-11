@@ -4,8 +4,9 @@ import { Engine, Registry } from '@intent-driven/core';
 import { canonical, MissingCapabilityError, services } from '@intent-driven/contracts';
 import type { Json, Snapshot, Specification, Store } from '@intent-driven/contracts';
 import { diffSpecification, echoPlugin, standard } from '@intent-driven/standard';
+import type { ReactComponentRegistration } from '@intent-driven/react';
 import { Workspace, reactRenderer } from '@intent-driven/react';
-import { workbenchAdaptation, workbenchCompiler, workbenchTools } from './workbench';
+import { badgeContract, badgeId, badgeVersion, workbenchAdaptation, workbenchBadge, workbenchCompiler, workbenchTools } from './workbench';
 import { sharedClient } from './shared';
 import type { ExtensionProposal, WorkspaceClient, WorkspacePreview } from './shared';
 
@@ -29,6 +30,7 @@ const registry = new Registry('web');
 await registry.load(() => standard({ store, resolve: registry.inspect.bind(registry), tool: registry.invoke.bind(registry) }));
 await registry.load(echoPlugin);
 await registry.load(workbenchTools);
+await registry.load(workbenchBadge);
 await registry.load(workbenchCompiler);
 await registry.load(workbenchAdaptation);
 await registry.load(reactRenderer);
@@ -45,6 +47,16 @@ const localClient: WorkspaceClient = {
   rollback: (revision, expectedRevision) => engine.rollback(scope, revision, { expectedRevision }),
   suggest: requirement => engine.suggest(scope, requirement),
 };
+const nativeComponents = new Map<string, ReactComponentRegistration>([
+  [badgeId + '@' + badgeVersion, {
+    contract: badgeContract,
+    render: ({ label, values, emit }) => <div>
+      <strong>{label}</strong>
+      <p>{String(values.value)}</p>
+      {emit && <button type="button" onClick={() => emit(null)}>Acknowledge status</button>}
+    </div>,
+  }],
+]);
 const intents = [
   '将当前应用改造成开发工作台，左侧显示文件、中间显示编辑器、右侧显示 Agent 状态。',
   '修改代码前先显示 Diff，需要我确认后才能提交。',
@@ -57,7 +69,7 @@ function App({ initial, initialUI, client, shared = false }: {
 }) {
   const [snapshot, setSnapshot] = useState(initial);
   const [ui, setUI] = useState(initialUI);
-  const [view, setView] = useState('workspace');
+  const [view, setView] = useState('');
   const [text, setText] = useState(intents[0]!);
   const [pending, setPreview] = useState<WorkspacePreview>();
   const preview = pending?.change;
@@ -102,6 +114,14 @@ function App({ initial, initialUI, client, shared = false }: {
       <button key={intent} type="button" disabled={busy} onClick={() => { setText(intent); clearPreview(); }}>
         {'ABCD'[index]} · {['Create workbench', 'Review edits', 'Gate release', 'Adapt layout'][index]}
       </button>)}</div>
+    <button type="button" disabled={busy} onClick={() => {
+      setText('为开发工作台添加状态指示器。');
+      clearPreview();
+    }}>Add a status badge</button>
+    <button type="button" disabled={busy} onClick={() => {
+      setText('为开发工作台添加发布设置表单。');
+      clearPreview();
+    }}>Add a release settings form</button>
     {shared && <button type="button" disabled={busy} onClick={() => {
       setText('为开发工作台添加检查工作区的操作。');
       clearPreview();
@@ -166,7 +186,7 @@ function App({ initial, initialUI, client, shared = false }: {
       <button type="button" disabled={busy} onClick={() => setExtension(undefined)}>Dismiss extension proposal</button>
     </section>}
     <output aria-live="polite">{message}</output>
-    {ui && snapshot && <Workspace ui={ui} data={snapshot.data} mode={snapshot.mode} activeView={view} onNavigate={setView} disabled={busy}
+    {ui && snapshot && <Workspace components={nativeComponents} ui={ui} data={snapshot.data} mode={snapshot.mode} activeView={view} onNavigate={setView} disabled={busy}
       onEvent={(event: string, input: Json) => void run(async () => {
         await refresh(await client.dispatch(event, input, 'e-' + crypto.randomUUID()));
         setMessage('Event saved.');

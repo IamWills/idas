@@ -1,10 +1,19 @@
-import { clone, IdasError, services } from '@intent-driven/contracts';
-import type { Json, Plugin, Specification } from '@intent-driven/contracts';
+import { clone, IdasError, services, uiComponentPlugin } from '@intent-driven/contracts';
+import type { ComponentContract, Json, Plugin, Specification } from '@intent-driven/contracts';
 import { compileOffline } from '@intent-driven/standard';
 import type { CompileInput } from '@intent-driven/standard';
 
 type Workflow = Specification['workflows'][number];
 type Rule = Specification['interaction']['rules'][number];
+export const badgeId = 'ui.workbench.status';
+export const badgeVersion = '1.0.0';
+export const badgeContract = {
+  properties: { value: { kind: 'string', required: true } }, emitsEvent: true,
+} satisfies ComponentContract;
+export const workbenchBadge = () => uiComponentPlugin(
+  { id: 'workbench.status-badge', version: '1.0.0', environments: ['any'], permissions: [] },
+  { id: badgeId, version: badgeVersion, contract: badgeContract },
+);
 const initialCode = 'export const ready = true;';
 const sourceInput = { kind: 'text', minLength: 1, maxLength: 1000 } as const;
 const tool = (id: string) => ({ id: 'workbench.' + id, range: '^1.0.0' });
@@ -29,7 +38,9 @@ export function compileWorkbench(input: CompileInput): Specification {
   const review = /diff/i.test(text) && /确认|confirm/i.test(text);
   const release = /发布.*测试.*构建.*上传|release.*test.*build.*upload/i.test(text);
   const inspect = /检查工作区|inspect (?:the )?workspace/i.test(text);
-  if (!create && !move && !review && !release && !inspect) return compileOffline(input);
+  const badge = /状态指示器|status badge/i.test(text);
+  const settings = /发布设置表单|release settings form/i.test(text);
+  if (!create && !move && !review && !release && !inspect && !badge && !settings) return compileOffline(input);
 
   const existing = previous !== null && ['files', 'editor', 'agent'].every(id => previous.ui.views.some(view => view.id === id))
     && ['draft', 'committed', 'status', 'diff', 'passed', 'artifact', 'report'].every(key => Object.hasOwn(previous.state.initial, key))
@@ -101,6 +112,38 @@ export function compileWorkbench(input: CompileInput): Specification {
     installWorkflow(spec, { id: 'inspect', tasks: [
       { id: 'inspect', capability: tool('inspect').id, input: null, saveAs: 'inspection' },
     ] });
+  }
+  if (badge) {
+    replaceRule(spec, { event: 'acknowledge-status', from: 'ready', to: 'ready',
+      set: [{ key: 'status', value: 'Acknowledged' }] });
+    if (!spec.capabilities.some(item => item.id === badgeId)) spec.capabilities.push({ id: badgeId, range: badgeVersion });
+    agent.components = agent.components.filter(component => !['status', 'status-layout'].includes(component.id)).concat([
+      { id: 'status-layout', kind: 'layout', layout: 'stack', label: 'Live status', children: [
+        { id: 'status-row', kind: 'layout', layout: 'row', label: '', children: [
+          { id: 'status-badge', kind: 'plugin', capability: badgeId, version: badgeVersion, label: 'Agent status badge',
+            bindings: { value: 'status' }, event: 'acknowledge-status', modes: ['ready'] },
+        ] },
+      ] },
+    ]);
+  }
+  if (settings) {
+    spec.state.initial.releaseSettings ??= { title: 'Release candidate', attempts: 2, notify: false, channel: 'preview' };
+    replaceRule(spec, { event: 'save-release-settings', from: 'ready', to: 'ready',
+      input: { kind: 'form', id: 'release-settings' }, capture: 'releaseSettings' });
+    agent.components = agent.components.filter(component => !['release-settings', 'saved-settings'].includes(component.id)).concat([
+      { id: 'release-settings', kind: 'form', label: 'Release settings', event: 'save-release-settings', modes: ['ready'], fields: [
+        { id: 'title', label: 'Release title', kind: 'text', required: true, maxLength: 80, binding: { state: 'releaseSettings', path: ['title'] } },
+        { id: 'attempts', label: 'Retry limit', kind: 'number', required: true, min: 0, max: 5, binding: { state: 'releaseSettings', path: ['attempts'] } },
+        { id: 'notify', label: 'Send notification', kind: 'boolean', binding: { state: 'releaseSettings', path: ['notify'] } },
+        { id: 'channel', label: 'Release channel', kind: 'choice', required: true, binding: { state: 'releaseSettings', path: ['channel'] },
+          options: [{ value: 'preview', label: 'Preview' }, { value: 'stable', label: 'Stable' }] },
+      ] },
+      { id: 'saved-settings', kind: 'value', label: 'Saved release settings', state: 'releaseSettings' },
+    ]);
+    spec.ui.navigation = { initial: 'editor', routes: [
+      { from: 'editor', to: 'files' }, { from: 'editor', to: 'agent' },
+      { from: 'files', to: 'editor' }, { from: 'agent', to: 'editor' },
+    ] };
   }
   spec.intent = { ...spec.intent, goal: text, context, scope };
   spec.metadata = { ...spec.metadata, source: 'workbench-demo', changes: [...spec.metadata.changes.slice(-19), text.slice(0, 1000)] };

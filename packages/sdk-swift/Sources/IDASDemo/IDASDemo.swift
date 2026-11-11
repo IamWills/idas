@@ -28,7 +28,7 @@ import SwiftUI
         switch spec {
         case .success(let value):
             VStack {
-                Workspace(spec: value, data: value.state.initial) { event, input in
+                Workspace(spec: value, data: value.state.initial, components: workbenchComponents) { event, input in
                     message = "Event: " + event + " " + input.display
                 }
                 if !message.isEmpty { Text(message).padding() }

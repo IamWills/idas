@@ -51,7 +51,7 @@ struct SharedWorkspaceView: View {
                 }
                 if !message.isEmpty { Text(message) }
                 if let snapshot {
-                    Workspace(spec: snapshot.spec, data: snapshot.data, mode: snapshot.mode) { event, input in
+                    Workspace(spec: snapshot.spec, data: snapshot.data, mode: snapshot.mode, components: workbenchComponents) { event, input in
                         let eventID = "e-" + UUID().uuidString
                         perform { self.snapshot = try await client.dispatch(event: event, input: input, eventID: eventID) }
                     }

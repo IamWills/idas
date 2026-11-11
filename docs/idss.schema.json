@@ -81,52 +81,7 @@
                 "maxItems": 100,
                 "type": "array",
                 "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string",
-                      "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
-                    },
-                    "kind": {
-                      "type": "string",
-                      "enum": [
-                        "text",
-                        "button",
-                        "input",
-                        "value"
-                      ]
-                    },
-                    "label": {
-                      "type": "string",
-                      "maxLength": 1000
-                    },
-                    "event": {
-                      "type": "string",
-                      "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
-                    },
-                    "state": {
-                      "type": "string",
-                      "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
-                    },
-                    "modes": {
-                      "minItems": 1,
-                      "maxItems": 100,
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
-                      }
-                    },
-                    "multiline": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "kind",
-                    "label"
-                  ],
-                  "additionalProperties": false
+                  "$ref": "#/$defs/__schema1"
                 }
               }
             },
@@ -175,6 +130,42 @@
           "required": [
             "wide",
             "compact"
+          ],
+          "additionalProperties": false
+        },
+        "navigation": {
+          "type": "object",
+          "properties": {
+            "initial": {
+              "type": "string",
+              "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+            },
+            "routes": {
+              "maxItems": 380,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                  },
+                  "to": {
+                    "type": "string",
+                    "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "initial",
+            "routes"
           ],
           "additionalProperties": false
         }
@@ -252,29 +243,51 @@
                 "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
               },
               "input": {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "text"
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "text"
+                      },
+                      "minLength": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1000
+                      },
+                      "maxLength": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "minLength",
+                      "maxLength"
+                    ],
+                    "additionalProperties": false
                   },
-                  "minLength": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 1000
-                  },
-                  "maxLength": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 1000
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "form"
+                      },
+                      "id": {
+                        "type": "string",
+                        "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id"
+                    ],
+                    "additionalProperties": false
                   }
-                },
-                "required": [
-                  "kind",
-                  "minLength",
-                  "maxLength"
-                ],
-                "additionalProperties": false
+                ]
               }
             },
             "required": [
@@ -350,8 +363,43 @@
                   "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
                 },
                 "inputFrom": {
-                  "type": "string",
-                  "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                        },
+                        "path": {
+                          "minItems": 1,
+                          "maxItems": 12,
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                              },
+                              {
+                                "type": "string",
+                                "pattern": "^(0|[1-9]\\d{0,8})$"
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "state",
+                        "path"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
                 },
                 "inputBindings": {
                   "type": "object",
@@ -360,8 +408,43 @@
                     "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
                   },
                   "additionalProperties": {
-                    "type": "string",
-                    "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "state": {
+                            "type": "string",
+                            "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                          },
+                          "path": {
+                            "minItems": 1,
+                            "maxItems": 12,
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                                },
+                                {
+                                  "type": "string",
+                                  "pattern": "^(0|[1-9]\\d{0,8})$"
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "state",
+                          "path"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
                   }
                 }
               },
@@ -534,6 +617,562 @@
           "additionalProperties": {
             "$ref": "#/$defs/__schema0"
           }
+        }
+      ]
+    },
+    "__schema1": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "text",
+                "button",
+                "input",
+                "value"
+              ]
+            },
+            "label": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "event": {
+              "type": "string",
+              "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+            },
+            "state": {
+              "type": "string",
+              "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+            },
+            "modes": {
+              "minItems": 1,
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+              }
+            },
+            "multiline": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "label"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+            },
+            "label": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "kind": {
+              "type": "string",
+              "const": "plugin"
+            },
+            "capability": {
+              "type": "string",
+              "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+            },
+            "version": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^\\d+\\.\\d+\\.\\d+$"
+            },
+            "props": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              }
+            },
+            "bindings": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                      },
+                      "path": {
+                        "minItems": 1,
+                        "maxItems": 12,
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^(0|[1-9]\\d{0,8})$"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "state",
+                      "path"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "event": {
+              "type": "string",
+              "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+            },
+            "modes": {
+              "minItems": 1,
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+              }
+            }
+          },
+          "required": [
+            "id",
+            "label",
+            "kind",
+            "capability",
+            "version"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+            },
+            "label": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "kind": {
+              "type": "string",
+              "const": "form"
+            },
+            "event": {
+              "type": "string",
+              "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+            },
+            "fields": {
+              "minItems": 1,
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                      },
+                      "label": {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "binding": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "state": {
+                                "type": "string",
+                                "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                              },
+                              "path": {
+                                "minItems": 1,
+                                "maxItems": 12,
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                                    },
+                                    {
+                                      "type": "string",
+                                      "pattern": "^(0|[1-9]\\d{0,8})$"
+                                    }
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "state",
+                              "path"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "kind": {
+                        "type": "string",
+                        "const": "text"
+                      },
+                      "minLength": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1000
+                      },
+                      "maxLength": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "label",
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                      },
+                      "label": {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "binding": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "state": {
+                                "type": "string",
+                                "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                              },
+                              "path": {
+                                "minItems": 1,
+                                "maxItems": 12,
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                                    },
+                                    {
+                                      "type": "string",
+                                      "pattern": "^(0|[1-9]\\d{0,8})$"
+                                    }
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "state",
+                              "path"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "kind": {
+                        "type": "string",
+                        "const": "number"
+                      },
+                      "min": {
+                        "type": "number"
+                      },
+                      "max": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "label",
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                      },
+                      "label": {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "binding": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "state": {
+                                "type": "string",
+                                "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                              },
+                              "path": {
+                                "minItems": 1,
+                                "maxItems": 12,
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                                    },
+                                    {
+                                      "type": "string",
+                                      "pattern": "^(0|[1-9]\\d{0,8})$"
+                                    }
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "state",
+                              "path"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "kind": {
+                        "type": "string",
+                        "const": "boolean"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "label",
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                      },
+                      "label": {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "binding": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "state": {
+                                "type": "string",
+                                "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                              },
+                              "path": {
+                                "minItems": 1,
+                                "maxItems": 12,
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                                    },
+                                    {
+                                      "type": "string",
+                                      "pattern": "^(0|[1-9]\\d{0,8})$"
+                                    }
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "state",
+                              "path"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "kind": {
+                        "type": "string",
+                        "const": "choice"
+                      },
+                      "options": {
+                        "minItems": 1,
+                        "maxItems": 30,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "value": {
+                              "type": "string",
+                              "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+                            },
+                            "label": {
+                              "type": "string",
+                              "maxLength": 1000
+                            }
+                          },
+                          "required": [
+                            "value",
+                            "label"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "label",
+                      "kind",
+                      "options"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "modes": {
+              "minItems": 1,
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+              }
+            }
+          },
+          "required": [
+            "id",
+            "label",
+            "kind",
+            "event",
+            "fields"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+            },
+            "label": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "kind": {
+              "type": "string",
+              "const": "layout"
+            },
+            "layout": {
+              "type": "string",
+              "enum": [
+                "stack",
+                "row",
+                "grid"
+              ]
+            },
+            "columns": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4
+            },
+            "modes": {
+              "minItems": 1,
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^(?!(?:constructor|prototype)$)[a-zA-Z][a-zA-Z0-9._-]{0,95}$"
+              }
+            },
+            "children": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema1"
+              }
+            }
+          },
+          "required": [
+            "id",
+            "label",
+            "kind",
+            "layout",
+            "children"
+          ],
+          "additionalProperties": false
         }
       ]
     }
